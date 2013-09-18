@@ -50,6 +50,16 @@ function next_char(content, start)
     return string.sub(content, start, start)
 end
 
+function read_comment(content, start)
+    local tag_start, tag_end = read_until(content, "-->", start)
+    if tag_start then
+        output('remove comment "%s"', string.sub(content, start, tag_end) )
+        return tag_end + 1
+    else
+        assert( false )
+    end
+end
+
 --input  : the file content and the pos where to start
 --output : if succeed, first param return begin of this tag, then the second is the end of this tag
 --         else first param is false
@@ -57,6 +67,9 @@ function try_read_tag(content, start)
     debug("try_read_tag processing : '%s'", string.sub(content, start) )
     if string.match(content, "^</", start) then
         return false
+    end
+    if string.match(content, "^<!--", start) then
+        start = read_comment(content, start)
     end
     local tag_start, tag_end = read_until(content, '>', start)
     if tag_start then
@@ -121,7 +134,6 @@ function read_tag_content(content, start)
 end
 
 function read_tag_end(content, start, tagname)
-    output(tagname)
     debug("read_tag_end, tagname=%s, processing : '%s'", tagname, string.sub(content, start) )
     local s, e = read_until(content, string.format("%s>", tagname), start)
     if s then
