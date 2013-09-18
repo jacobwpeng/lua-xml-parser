@@ -1,97 +1,26 @@
 #!/usr/bin/env lua
 
-function Debug(fmt, ...)
+indent_per_level = 5
+
+function debug(fmt, ...)
+    --print(string.format(fmt, ...))
+end
+
+function output(fmt, ...)
     print(string.format(fmt, ...))
 end
 
-function is_table_empty(t)
-    for _, __ in pairs(t) do
-        return true
-    end
-    return false
-end
-
-function read_until(content, sep, s)
-    return string.find(content, sep, s, true)
-end
-
-
-function read_tag_start(content, init) 
-    local s, e = read_until(content, '>', init)
-    if s then
-        -- got a match
-        local tagname = string.sub(content, init+1, e-1)
-        return tagname, e+1
-    else
-        -- no more new tag !
-        -- so we just done our job
-        return nil
-    end
-end
-
-function read_tag_end(content, tagname, init) 
-    Debug('read_tag_end, init=%d, tagname=%s', init, tagname)
-    local s, e = read_until(content, string.format('</%s>', tagname), init)
-    -- we must read every tag end 
-    assert(s)
-    Debug('read_tag_end return, s=%d, e=%d', s, e)
-    return s, e
-end
-
-function parse_xml(content, init)
-    local next_pos
-    if string.sub(content, init, init+1) == '<' then
-        -- we met another xml part
-        local new_part
-        new_part, next_pos = do_process(content, init)
-        assert( not is_table_empty(new_part) )
-        return new_part, next_pos
-    else
-        -- this is the value for last tag, read it!
-        local s, e = read_until(content, '<', init)
-        assert( s )
-        local val = ''
-        next_pos = e
-        if s == e and s == 1 then
-           val = ''
-       else
-           val = string.sub(content, init, s-1)
-       end
-       return val, next_pos
-    end
-end
-
-function do_process(content, init) 
-    local xml_part = {}
-    local next_pos = init
-    while 1 do
-        local tagname
-        tagname, next_pos = read_tag_start(content, next_pos)
-        if not tagname then
-            -- done for this part of xml
-            return xml_part, init
+function walk_table(t, indent)
+    indent = indent or 0
+    local indent_str = string.rep(' ', indent)
+    for k, v in pairs(t) do
+        print( string.format('%skey : %q', indent_str, k) )
+        if type(v) == 'table' then
+            walk_table(v, indent + indent_per_level)
         else
-            -- next is tag
-            -- so we add part fot this tag
-            xml_part[tagname] = {}
-            local part
-            part, next_pos = parse_xml(content, next_pos)
-            if type(part) == 'string' then
-                xml_part[tagname]['>value'] = part
-            else
-                xml_part[tagname] = part
-            end
-            local s, e = read_tag_end(content, tagname, next_pos)
-            next_pos = e+1
+            print( string.format('%svalue : %q', indent_str, v) )
         end
     end
-    return xml_part, next_pos
-end
-
-function main() 
-    local file_content = read_file()
-    local parsed_xml = do_process( file_content, 1)
-    print( parsed_xml['id']['>value'] )
 end
 
 function read_file() 
@@ -99,7 +28,7 @@ function read_file()
     if #arg == 1 then
         local file, errmsg = io.open(arg[1], 'r')
         if errmsg then
-            print('cannot open file ' .. errmsg )
+            debug('cannot open file, %s', errmsg)
         else
             file_content = file:read('*a')
         end
@@ -107,6 +36,115 @@ function read_file()
         file_content = io.read('*a')
     end
     return file_content
+end
+
+function strip_all_white_chars(file_content)
+    return string.gsub(file_content, '[\n\t ]', '')
+end
+
+function read_until(content, sep, start)
+    return string.find(content, sep, start, true)
+end
+
+function next_char(content, start)
+    return string.sub(content, start, start)
+end
+
+--input  : the file content and the pos where to start
+--output : if succeed, first param return begin of this tag, then the second is the end of this tag
+--         else first param is false
+function try_read_tag(content, start)
+    debug("try_read_tag processing : '%s'", string.sub(content, start) )
+    if string.match(content, "^</", start) then
+        return false
+    end
+    local tag_start, tag_end = read_until(content, '>', start)
+    if tag_start then
+        local pos, next_tag_end = read_until(content, '/>', start)
+        local tag_name = string.sub(content, start+1 , tag_end-1)
+        local is_single_tag = false
+        if string.sub(tag_name, string.len(tag_name) ) == '/' then
+            tag_name = string.sub(tag_name, 0, string.len(tag_name) -1 )
+            is_single_tag = true
+        end
+        return tag_name, tag_end + 1, is_single_tag
+    else
+        return false
+    end
+end
+
+function read_tag_content(content, start)
+    debug("read_tag_content processing : '%s'", string.sub(content, start) )
+    local value = {}
+    if next_char(content, start) == '<' then
+        local pos = start
+        while true do
+            local tagname, next_start, this_tag_value, is_single_tag
+            tagname, next_start, is_single_tag = try_read_tag(content, pos)
+            if is_single_tag then
+                output('%s is single tag', tagname)
+            end
+            if tagname then
+                if not is_single_tag then
+                    this_tag_value, next_start = read_tag_content(content, next_start)
+                else
+                    this_tag_value = ""
+                end
+                if value[tagname] and value[tagname][1]then
+                    value[tagname][#value[tagname]+1] = this_tag_value
+                elseif value[tagname] then
+                    local tmp_table = value[tagname]
+                    value[tagname] = {}
+                    value[tagname][1] = tmp_table
+                    value[tagname][2] = this_tag_value
+                else
+                    value[tagname] = this_tag_value
+                end
+                if not is_single_tag then
+                    next_start = read_tag_end(content, next_start, tagname)
+                end
+                pos = next_start
+            else
+                break
+            end
+        end
+        return value, pos
+    else
+        local value_start, value_end = read_until(content, "<", start)
+        if value_start then
+            return string.sub(content, start, value_end - 1), value_end
+        else
+            assert( false )
+        end
+
+    end
+end
+
+function read_tag_end(content, start, tagname)
+    output(tagname)
+    debug("read_tag_end, tagname=%s, processing : '%s'", tagname, string.sub(content, start) )
+    local s, e = read_until(content, string.format("%s>", tagname), start)
+    if s then
+        return e + 1
+    else
+        assert( false )
+    end
+end
+
+
+function main()
+    local file_content = read_file()
+    file_content = strip_all_white_chars(file_content)
+    local tagname, next_start = try_read_tag(file_content, 1)
+    if tagname then
+        local value, next_pos = read_tag_content(file_content, next_start)
+        next_pos = read_tag_end(file_content, next_pos, tagname)
+        if type(value) == 'string' then
+            output('value=%s', value)
+        elseif type(value) == 'table' then
+            walk_table(value)
+        end
+    end
 end
 
 main()
