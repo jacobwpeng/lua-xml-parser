@@ -8,7 +8,7 @@
         <name>jacobwpeng</name>
         <name>pengwang</name>
         <third> <!-- this is another comment -->
-            <tmp>first</tmp>
+            <tmp>fir<!-- what the fuck! -->st</tmp>
             <tmp>second</tmp>
         </third>
     </names>

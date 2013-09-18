@@ -3,7 +3,8 @@
 indent_per_level = 5
 
 function debug(fmt, ...)
-    --print(string.format(fmt, ...))
+    print(string.format(fmt, ...))
+    print()
 end
 
 function output(fmt, ...)
@@ -68,6 +69,7 @@ function try_read_tag(content, start)
     if string.match(content, "^</", start) then
         return false
     end
+    -- read comment
     if string.match(content, "^<!--", start) then
         start = read_comment(content, start)
     end
@@ -76,6 +78,7 @@ function try_read_tag(content, start)
         local pos, next_tag_end = read_until(content, '/>', start)
         local tag_name = string.sub(content, start+1 , tag_end-1)
         local is_single_tag = false
+        -- to process <tag />
         if string.sub(tag_name, string.len(tag_name) ) == '/' then
             tag_name = string.sub(tag_name, 0, string.len(tag_name) -1 )
             is_single_tag = true
@@ -86,35 +89,37 @@ function try_read_tag(content, start)
     end
 end
 
-function read_tag_content(content, start)
-    debug("read_tag_content processing : '%s'", string.sub(content, start) )
+function read_tag_content(content, start, tag_name)
+    assert( tag_name and type(tag_name) == 'string')
+    debug("read_tag_content tag_name=%s, processing : '%s'", tag_name, string.sub(content, start) )
     local value = {}
     if next_char(content, start) == '<' then
         local pos = start
         while true do
-            local tagname, next_start, this_tag_value, is_single_tag
-            tagname, next_start, is_single_tag = try_read_tag(content, pos)
+            --read as more tags as possible
+            local new_tag_name, next_start, this_tag_value, is_single_tag
+            new_tag_name, next_start, is_single_tag = try_read_tag(content, pos)
             if is_single_tag then
-                output('%s is single tag', tagname)
+                output('%s is single tag', new_tag_name)
             end
-            if tagname then
+            if new_tag_name then
                 if not is_single_tag then
-                    this_tag_value, next_start = read_tag_content(content, next_start)
+                    this_tag_value, next_start = read_tag_content(content, next_start, new_tag_name)
                 else
                     this_tag_value = ""
                 end
-                if value[tagname] and value[tagname][1]then
-                    value[tagname][#value[tagname]+1] = this_tag_value
-                elseif value[tagname] then
-                    local tmp_table = value[tagname]
-                    value[tagname] = {}
-                    value[tagname][1] = tmp_table
-                    value[tagname][2] = this_tag_value
+                if value[new_tag_name] and type(value[new_tag_name]) == 'table' then
+                    value[new_tag_name][#value[tag_name]+1] = this_tag_value
+                elseif value[new_tag_name] then
+                    local tmp_table = value[new_tag_name]
+                    value[new_tag_name] = {}
+                    value[new_tag_name][1] = tmp_table
+                    value[new_tag_name][2] = this_tag_value
                 else
-                    value[tagname] = this_tag_value
+                    value[new_tag_name] = this_tag_value
                 end
                 if not is_single_tag then
-                    next_start = read_tag_end(content, next_start, tagname)
+                    next_start = read_tag_end(content, next_start, new_tag_name)
                 end
                 pos = next_start
             else
@@ -123,9 +128,15 @@ function read_tag_content(content, start)
         end
         return value, pos
     else
-        local value_start, value_end = read_until(content, "<", start)
+        local tag_end_str = string.format('</%s>', tag_name)
+        local value_start, value_end = read_until(content, tag_end_str, start)
         if value_start then
-            return string.sub(content, start, value_end - 1), value_end
+            local next_start = value_end - string.len(tag_end_str)
+            local value = string.sub(content, start, next_start)
+            -- remove comment in value
+            value = string.gsub(value, "<!--.-->", '')
+            debug( 'value=%s', value)
+            return value, next_start + 1
         else
             assert( false )
         end
@@ -149,7 +160,7 @@ function main()
     file_content = strip_all_white_chars(file_content)
     local tagname, next_start = try_read_tag(file_content, 1)
     if tagname then
-        local value, next_pos = read_tag_content(file_content, next_start)
+        local value, next_pos = read_tag_content(file_content, next_start, tagname)
         next_pos = read_tag_end(file_content, next_pos, tagname)
         if type(value) == 'string' then
             output('value=%s', value)
