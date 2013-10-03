@@ -153,34 +153,7 @@ function try_read_tag(content, start)
         end
     end
         
-    return tag_name, tag_end + 1 , is_single_tag
-
-    --local tag_name = string.sub(content, start + 1, tag_name_end)
-    --local _, tag_end = read_until(content, '>', start)
-    --local is_single_tag = false 
-    ----process <tagname />
-    --if next_char(content, tag_end - 1 ) == '/' then
-    --    is_single_tag = true
-    --    attr_end = attr_end - 1
-    --end
-
-    --local attr_part = string.sub(content, tag_name_end, attr_end - 1)
-    --local attrs = read_attrs(attr_part)
-
-    --if tag_start then
-    --    return tag_name, tag_end + 1, is_single_tag
-    --    ----local pos, next_tag_end = read_until(content, '/>', start)
-    --    --local tag_name = string.sub(content, start+1 , tag_end-1)
-    --    --local is_single_tag = false
-    --    ---- to process <tagname />
-    --    --if string.sub(tag_name, string.len(tag_name) ) == '/' then
-    --    --    tag_name = string.sub(tag_name, 0, string.len(tag_name) -1 )
-    --    --    is_single_tag = true
-    --    --end
-    --    --return tag_name, tag_end + 1, is_single_tag
-    --else
-    --    return false
-    --end
+    return tag_name, tag_end + 1 , is_single_tag, is_table_empty(attrs) == false and attrs or nil
 end
 
 function read_tag_content(content, start, tag_name)
