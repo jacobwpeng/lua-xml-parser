@@ -2,10 +2,12 @@
 
 indent_per_level = 5
 
-function debug(fmt, ...)
-    --print(string.format(fmt, ...))
-    --print(string.rep('-', 160) )
+function enable_debug(fmt, ...)
+    print(string.format(fmt, ...))
+    print(string.rep('-', 160) )
 end
+
+function disable_debug(fmt, ...) end
 
 function output(fmt, ...)
     print(string.format(fmt, ...))
@@ -103,8 +105,8 @@ function try_read_declaration(content, start)
 end
 
 --input  : the file content and the pos where to start
---output : if succeed, first param return begin of this tag, then the second is the end of this tag
---         else first param is false
+--output : if succeed, return (tagname, next_start, is_single_tag, attrs), single tag is a tag just like '<tagname />', attrs is nil if no attrs
+--         else return false
 function try_read_tag(content, start)
     debug("try_read_tag processing : '%s', start=%d, len=%d", string.sub(content, start), start, string.len(content))
     if start == string.len(content) then
@@ -116,8 +118,9 @@ function try_read_tag(content, start)
         return false
     end
     -- read comment
-    if string.match(content, "^<!--", start) then
+    while string.match(content, "^<!--", start) do 
         start = read_comment(content, start)
+        start = strip_heading_ws(content, start)
     end
     start = strip_heading_ws(content, start)
     local pos, tag_end = read_until(content, '>', start)
@@ -239,4 +242,5 @@ function main()
     end
 end
 
+debug = disable_debug
 main()
