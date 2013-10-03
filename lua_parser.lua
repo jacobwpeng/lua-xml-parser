@@ -3,8 +3,8 @@
 indent_per_level = 5
 
 function debug(fmt, ...)
-    print(string.format(fmt, ...))
-    print()
+    --print(string.format(fmt, ...))
+    --print(string.rep('-', 160) )
 end
 
 function output(fmt, ...)
@@ -39,16 +39,24 @@ function read_file()
     return file_content
 end
 
-function strip_all_white_chars(file_content)
-    return string.gsub(file_content, '[\n\t ]', '')
-end
-
-function read_until(content, sep, start)
+function read_until(content, sep, start, skip_ws)
     return string.find(content, sep, start, true)
 end
 
 function next_char(content, start)
     return string.sub(content, start, start)
+end
+
+function is_next_char_ws(content, start)
+    local c = next_char(content, start)
+    return c == ' ' or c == '\t' or c == '\n' or c == '\t'
+end
+
+function strip_heading_ws(content, start)
+    while is_next_char_ws(content, start) do
+        start = start + 1
+    end
+    return start
 end
 
 function read_comment(content, start)
@@ -66,6 +74,7 @@ end
 --         else first param is false
 function try_read_tag(content, start)
     debug("try_read_tag processing : '%s'", string.sub(content, start) )
+    start = strip_heading_ws(content, start)
     if string.match(content, "^</", start) then
         return false
     end
@@ -73,12 +82,13 @@ function try_read_tag(content, start)
     if string.match(content, "^<!--", start) then
         start = read_comment(content, start)
     end
+    start = strip_heading_ws(content, start)
     local tag_start, tag_end = read_until(content, '>', start)
     if tag_start then
-        local pos, next_tag_end = read_until(content, '/>', start)
+        --local pos, next_tag_end = read_until(content, '/>', start)
         local tag_name = string.sub(content, start+1 , tag_end-1)
         local is_single_tag = false
-        -- to process <tag />
+        -- to process <tagname />
         if string.sub(tag_name, string.len(tag_name) ) == '/' then
             tag_name = string.sub(tag_name, 0, string.len(tag_name) -1 )
             is_single_tag = true
@@ -93,6 +103,7 @@ function read_tag_content(content, start, tag_name)
     assert( tag_name and type(tag_name) == 'string')
     debug("read_tag_content tag_name=%s, processing : '%s'", tag_name, string.sub(content, start) )
     local value = {}
+    start = strip_heading_ws(content, start)
     if next_char(content, start) == '<' then
         local pos = start
         while true do
@@ -108,8 +119,10 @@ function read_tag_content(content, start, tag_name)
                 else
                     this_tag_value = ""
                 end
+                output('tag_name : %s, new_tag_name : %s', tag_name, new_tag_name )
                 if value[new_tag_name] and type(value[new_tag_name]) == 'table' then
-                    value[new_tag_name][#value[tag_name]+1] = this_tag_value
+                    value[new_tag_name][(#value[new_tag_name])+1] = this_tag_value
+
                 elseif value[new_tag_name] then
                     local tmp_table = value[new_tag_name]
                     value[new_tag_name] = {}
@@ -157,7 +170,6 @@ end
 
 function main()
     local file_content = read_file()
-    file_content = strip_all_white_chars(file_content)
     local tagname, next_start = try_read_tag(file_content, 1)
     if tagname then
         local value, next_pos = read_tag_content(file_content, next_start, tagname)
