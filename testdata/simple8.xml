@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="CP936"?>
+<root author="pengwang" date="2013-10-03 18:05">
+    <!-- this is a comment 
+         
+    
+    
+    -->
+    <names>
+        <name>jacobwpeng</name>
+        <name>pengwang</name>
+        <third> <!-- this is another comment -->
+            <tmp>fir<!-- what the fuck! -->st</tmp>
+            <tmp>second</tmp>
+        </third>
+    </names>
+    <sex>
+        <name>jacobwpeng</name>
+        <name>pengwang</name>
+    </sex>
+</root>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf8"?>
+<root author="pengwang" date="2013-10-03 18:05">
+    <!-- this is a comment 
+         
+    
+    
+    -->
+    <!-- 连续的注释 -->
+    <what>
+        <!--突然蹦出来的注释-->
+    </what>
+    <names>
+        <name>jacobwpeng</name>
+        <name>pengwang</name>
+        <third> <!-- this is another comment -->
+            <tmp>fir<!-- what the fuck! -->st</tmp>
+            <tmp>second</tmp>
+        </third>
+    </names>
+    <sex>
+        <name>jacobwpeng</name>
+        <name>pengwang</name>
+    </sex>
+</root>

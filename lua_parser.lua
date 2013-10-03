@@ -114,6 +114,7 @@ function try_read_tag(content, start)
     end
     start = strip_heading_ws(content, start)
     assert( next_char(content, start) == '<' )
+
     if string.match(content, "^</", start) then
         return false
     end
@@ -122,6 +123,10 @@ function try_read_tag(content, start)
         start = read_comment(content, start)
         start = strip_heading_ws(content, start)
     end
+    if string.match(content, "^</", start) then
+        return false
+    end
+
     start = strip_heading_ws(content, start)
     local pos, tag_end = read_until(content, '>', start)
     assert( pos )
@@ -150,10 +155,10 @@ function try_read_tag(content, start)
         tag_name = string.sub(content, start + 1, ws_start - 1)
         local attr_part = string.sub(content, attr_start, attr_end)
         local attrs = read_attrs(attr_part)
-        if is_table_empty(attrs) == false then
-            output('attrs of %s : ', tag_name)
-            walk_table(attrs)
-        end
+        --if is_table_empty(attrs) == false then
+        --    output('attrs of %s : ', tag_name)
+        --    walk_table(attrs)
+        --end
     end
         
     return tag_name, tag_end + 1 , is_single_tag, is_table_empty(attrs) == false and attrs or nil
@@ -242,5 +247,5 @@ function main()
     end
 end
 
-debug = disable_debug
+debug = enable_debug
 main()
