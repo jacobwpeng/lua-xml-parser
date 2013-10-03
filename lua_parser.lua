@@ -11,6 +11,14 @@ function output(fmt, ...)
     print(string.format(fmt, ...))
 end
 
+function is_table_empty(t)
+    assert( type(t) == 'table' )
+    for _, _ in pairs(t) do
+        return false
+    end
+    return true
+end
+
 function walk_table(t, indent)
     indent = indent or 0
     local indent_str = string.rep(' ', indent)
@@ -69,12 +77,41 @@ function read_comment(content, start)
     end
 end
 
+function read_attr(content, start)
+    local patt = '(%w+)="(.+)"'
+    return content.match(content, patt, start)
+end
+
+function read_attrs(attr_part)
+    local value = {}
+    for k, v in string.gmatch(attr_part, '(%w+)="(.-)"') do
+        value[k] = v
+    end
+    return value
+end
+
+function try_read_declaration(content, start)
+    start = strip_heading_ws(content, start)
+    local m = string.match(content, '<?xml.+?>', start)
+    if not m then
+        return nil
+    end
+    local s, attr_part_start = read_until(content, '<?xml', start)
+    local s, attr_part_end = read_until(content, '?>', start)
+    local declaration_line_attr_part = string.sub(content, attr_part_start, attr_part_end- 1 )
+    return read_attrs(declaration_line_attr_part), attr_part_end + 1
+end
+
 --input  : the file content and the pos where to start
 --output : if succeed, first param return begin of this tag, then the second is the end of this tag
 --         else first param is false
 function try_read_tag(content, start)
-    debug("try_read_tag processing : '%s'", string.sub(content, start) )
+    debug("try_read_tag processing : '%s', start=%d, len=%d", string.sub(content, start), start, string.len(content))
+    if start == string.len(content) then
+        return false
+    end
     start = strip_heading_ws(content, start)
+    assert( next_char(content, start) == '<' )
     if string.match(content, "^</", start) then
         return false
     end
@@ -83,20 +120,67 @@ function try_read_tag(content, start)
         start = read_comment(content, start)
     end
     start = strip_heading_ws(content, start)
-    local tag_start, tag_end = read_until(content, '>', start)
-    if tag_start then
-        --local pos, next_tag_end = read_until(content, '/>', start)
-        local tag_name = string.sub(content, start+1 , tag_end-1)
-        local is_single_tag = false
-        -- to process <tagname />
-        if string.sub(tag_name, string.len(tag_name) ) == '/' then
-            tag_name = string.sub(tag_name, 0, string.len(tag_name) -1 )
-            is_single_tag = true
-        end
-        return tag_name, tag_end + 1, is_single_tag
-    else
-        return false
+    local pos, tag_end = read_until(content, '>', start)
+    assert( pos )
+    local ws_start, tag_name_end = read_until(content, ' ', start)
+    if tag_end < tag_name_end then
+        --no attrs!
+        ws_start = nil
     end
+    local tag_name
+    local is_single_tag
+    local attrs = {}
+
+    if next_char(content, tag_end - 1) == '/' then
+        is_single_tag = true
+    end
+    if not ws_start then
+        --this tag has no attrs
+        tag_name = string.sub(content, start + 1, tag_end - 1)
+    else
+        --this tag has some attrs
+        local attr_start = ws_start + 1
+        local attr_end = tag_end - 1
+        if is_single_tag then
+            attr_end = attr_end - 1
+        end
+        tag_name = string.sub(content, start + 1, ws_start - 1)
+        local attr_part = string.sub(content, attr_start, attr_end)
+        local attrs = read_attrs(attr_part)
+        if is_table_empty(attrs) == false then
+            output('attrs of %s : ', tag_name)
+            walk_table(attrs)
+        end
+    end
+        
+    return tag_name, tag_end + 1 , is_single_tag
+
+    --local tag_name = string.sub(content, start + 1, tag_name_end)
+    --local _, tag_end = read_until(content, '>', start)
+    --local is_single_tag = false 
+    ----process <tagname />
+    --if next_char(content, tag_end - 1 ) == '/' then
+    --    is_single_tag = true
+    --    attr_end = attr_end - 1
+    --end
+
+    --local attr_part = string.sub(content, tag_name_end, attr_end - 1)
+    --local attrs = read_attrs(attr_part)
+
+    --if tag_start then
+    --    return tag_name, tag_end + 1, is_single_tag
+    --    ----local pos, next_tag_end = read_until(content, '/>', start)
+    --    --local tag_name = string.sub(content, start+1 , tag_end-1)
+    --    --local is_single_tag = false
+    --    ---- to process <tagname />
+    --    --if string.sub(tag_name, string.len(tag_name) ) == '/' then
+    --    --    tag_name = string.sub(tag_name, 0, string.len(tag_name) -1 )
+    --    --    is_single_tag = true
+    --    --end
+    --    --return tag_name, tag_end + 1, is_single_tag
+    --else
+    --    return false
+    --end
 end
 
 function read_tag_content(content, start, tag_name)
@@ -119,7 +203,6 @@ function read_tag_content(content, start, tag_name)
                 else
                     this_tag_value = ""
                 end
-                output('tag_name : %s, new_tag_name : %s', tag_name, new_tag_name )
                 if value[new_tag_name] and type(value[new_tag_name]) == 'table' then
                     value[new_tag_name][(#value[new_tag_name])+1] = this_tag_value
 
@@ -167,10 +250,11 @@ function read_tag_end(content, start, tagname)
     end
 end
 
-
 function main()
     local file_content = read_file()
-    local tagname, next_start = try_read_tag(file_content, 1)
+    local dec, start = try_read_declaration(file_content, 1)
+    start = start and start or 1
+    local tagname, next_start = try_read_tag(file_content, start)
     if tagname then
         local value, next_pos = read_tag_content(file_content, next_start, tagname)
         next_pos = read_tag_end(file_content, next_pos, tagname)
