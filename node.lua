@@ -1,4 +1,4 @@
-Node = { children={}, attrs={}, value='' }
+Node = { children={}, attrs={}, value='', single=false}
 Node.mt = {__index=Node}
 local FirstArgIsNotANode = 'first arg is not a node!'
 local SecondArgIsNotANode = 'second arg is not a node!'
@@ -6,7 +6,7 @@ local ArgIsNotANode = 'arg is not a node!'
 
 function Node.Node(name)
     if type(name) ~= 'string' then
-        error('arg name is not string!')
+        error('arg name is not string!', 2)
     end
     local node = {}
     node['name'] = name
@@ -16,6 +16,10 @@ end
 
 function is_a_node(n)
     return getmetatable(n) == Node.mt
+end
+
+function Node.IsNode(n)
+    return is_a_node(n)
 end
 
 function Node.SetParent(parent, child)
@@ -31,11 +35,19 @@ end
 
 function Node.GetParent(node)
     if not is_a_node(node) then
-        error(FirstArgIsNotANode, 2)
+        error(ArgIsNotANode, 2)
     end
 
     return node['parent']
 end
+
+function Node.GetName(node)
+    if not is_a_node(node) then
+        error(ArgIsNotANode, 2)
+    end
+    return node['name']
+end
+
 
 function Node.SetAttrs(node, attrs)
     if not is_a_node(node) then
@@ -137,4 +149,18 @@ function Node.PrevSibling(node)
         error(ArgIsNotANode, 2)
     end
     return node['prev']
+end
+
+function Node.SetSingle(node)
+    if not is_a_node(node) then
+        error(ArgIsNotANode, 2)
+    end
+    node['single'] = true
+end
+
+function Node.IsSingle(node)
+    if not is_a_node(node) then
+        error(ArgIsNotANode, 2)
+    end
+    return node['single']
 end
