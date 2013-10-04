@@ -39,7 +39,7 @@ function read_file()
     if #arg == 1 then
         local file, errmsg = io.open(arg[1], 'r')
         if errmsg then
-            debug('cannot open file, %s', errmsg)
+            DEBUG('cannot open file, %s', errmsg)
         else
             file_content = file:read('*a')
         end
@@ -103,7 +103,7 @@ end
 --output : if succeed, return (tagname, next_start, is_single_tag, attrs), single tag is a tag just like '<tagname />', attrs is nil if no attrs
 --         else return false
 function try_read_tag(content, start)
-    debug("try_read_tag processing : '%s', start=%d, len=%d", string.sub(content, start), start, string.len(content))
+    DEBUG("try_read_tag processing : '%s', start=%d, len=%d", string.sub(content, start), start, string.len(content))
     if start == string.len(content) then
         return false
     end
@@ -118,7 +118,7 @@ function try_read_tag(content, start)
     local pos, tag_end = read_until(content, '>', start)
     assert( pos )
     local ws_start, tag_name_end = read_until(content, ' ', start)
-    if tag_end < tag_name_end then
+    if ws_start and tag_end < tag_name_end then
         --no attrs!
         ws_start = nil
     end
@@ -141,57 +141,48 @@ function try_read_tag(content, start)
         end
         tag_name = string.sub(content, start + 1, ws_start - 1)
         local attr_part = string.sub(content, attr_start, attr_end)
-        local attrs = read_attrs(attr_part)
-        --if is_table_empty(attrs) == false then
-        --    output('attrs of %s : ', tag_name)
-        --    walk_table(attrs)
-        --end
+        attrs = read_attrs(attr_part)
     end
         
-    return tag_name, tag_end + 1 , is_single_tag, is_table_empty(attrs) == false and attrs or nil
+    local node = Node.Node(tag_name)
+    if is_single_tag then
+        node:SetSingle()
+    end
+    if is_table_empty(attrs) == false then
+        node:SetAttrs(attrs)
+    end
+    return node, tag_end + 1
 end
 
 function read_tag_content(content, start, tag_name)
     assert( tag_name and type(tag_name) == 'string')
-    debug("read_tag_content tag_name=%s, processing : '%s'", tag_name, string.sub(content, start) )
-    local value = {}
+    DEBUG("read_tag_content tag_name=%s, processing : '%s'", tag_name, string.sub(content, start) )
     start = strip_heading_ws(content, start)
+    local this_node = Node.Node(tag_name)
     if next_char(content, start) == '<' then
         local pos = start
         while true do
             --read as more tags as possible
             local new_tag_name, next_start, this_tag_value, is_single_tag
-            new_tag_name, next_start, is_single_tag, attrs = try_read_tag(content, pos)
-            if is_single_tag then
-                output('%s is single tag', new_tag_name)
-            end
-            if new_tag_name then
-                if not is_single_tag then
-                    this_tag_value, next_start = read_tag_content(content, next_start, new_tag_name)
+            local child, next_start = try_read_tag(content, pos)
+            --new_tag_name, next_start, is_single_tag, attrs = try_read_tag(content, pos)
+            if child then
+                if not child:IsSingle() then
+                    this_tag_value, next_start = read_tag_content(content, next_start, child:GetName())
                 else
                     this_tag_value = ""
                 end
-                if value[new_tag_name] and type(value[new_tag_name]) == 'table' then
-                    local idx = (#value[new_tag_name])+1
-                    value[new_tag_name][idx] = this_tag_value
-
-                elseif value[new_tag_name] then
-                    local tmp_table = value[new_tag_name]
-                    value[new_tag_name] = {}
-                    value[new_tag_name][1] = tmp_table
-                    value[new_tag_name][2] = this_tag_value
-                else
-                    value[new_tag_name] = this_tag_value
-                end
-                if not is_single_tag then
-                    next_start = read_tag_end(content, next_start, new_tag_name)
+                child:SetValue(this_tag_value)
+                this_node:AddChild(child)
+                if not child:IsSingle() then
+                    next_start = read_tag_end(content, next_start, child:GetName())
                 end
                 pos = next_start
             else
                 break
             end
         end
-        return value, pos
+        return this_node, pos
     else
         local tag_end_str = string.format('</%s>', tag_name)
         local value_start, value_end = read_until(content, tag_end_str, start)
@@ -207,7 +198,7 @@ function read_tag_content(content, start, tag_name)
 end
 
 function read_tag_end(content, start, tagname)
-    debug("read_tag_end, tagname=%s, processing : '%s'", tagname, string.sub(content, start) )
+    DEBUG("read_tag_end, tagname=%s, processing : '%s'", tagname, string.sub(content, start) )
     local s, e = read_until(content, string.format("%s>", tagname), start)
     if s then
         return e + 1
@@ -221,17 +212,25 @@ function main()
     file_content = remove_all_comments(file_content)
     local dec, start = try_read_declaration(file_content, 1)
     start = start and start or 1
-    local tagname, next_start = try_read_tag(file_content, start)
-    if tagname then
-        local value, next_pos = read_tag_content(file_content, next_start, tagname)
-        next_pos = read_tag_end(file_content, next_pos, tagname)
-        if type(value) == 'string' then
-            output('value=%s', value)
-        elseif type(value) == 'table' then
-            walk_table(value)
+    local root, next_start = try_read_tag(file_content, start)
+    if root then
+        local root_value, next_pos = read_tag_content(file_content, next_start, root:GetName())
+        next_pos = read_tag_end(file_content, next_pos, root:GetName())
+        if type(root_value) == 'string' then
+            root:SetValue(root_value)
+        elseif Node.IsNode(root_value) then
+            root:AddChild(root_value)
+        else
+            assert(false)
         end
     end
 end
 
-debug = enable_debug
+function trace (event, line)
+    local s = debug.getinfo(2).short_src
+    print(s .. ":" .. line)
+end
+--debug.sethook(trace, "l")
+--DEBUG = enable_debug
+DEBUG = disable_debug
 main()
