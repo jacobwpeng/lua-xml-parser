@@ -1,10 +1,10 @@
 require 'node'
 
 function main()
-    local first = Node.Node()
-    local second = Node.Node()
-    local third = Node.Node()
-    local root = Node.Node()
+    local first = Node.Node('f')
+    local second = Node.Node('s')
+    local third = Node.Node('t')
+    local root = Node.Node('r')
 
     local first_attr = { first = '1' }
 

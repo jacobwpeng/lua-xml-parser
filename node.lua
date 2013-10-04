@@ -4,8 +4,12 @@ local FirstArgIsNotANode = 'first arg is not a node!'
 local SecondArgIsNotANode = 'second arg is not a node!'
 local ArgIsNotANode = 'arg is not a node!'
 
-function Node.Node()
+function Node.Node(name)
+    if type(name) ~= 'string' then
+        error('arg name is not string!')
+    end
     local node = {}
+    node['name'] = name
     setmetatable(node, Node.mt)
     return node
 end
