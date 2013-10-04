@@ -69,14 +69,9 @@ function strip_heading_ws(content, start)
     return start
 end
 
-function read_comment(content, start)
-    local tag_start, tag_end = read_until(content, "-->", start)
-    if tag_start then
-        output('remove comment "%s"', string.sub(content, start, tag_end) )
-        return tag_end + 1
-    else
-        assert( false )
-    end
+function remove_all_comments(content, start)
+    local patt = '<!--.--->'
+    return string.gsub(content, patt, '')
 end
 
 function read_attr(content, start)
@@ -115,14 +110,6 @@ function try_read_tag(content, start)
     start = strip_heading_ws(content, start)
     assert( next_char(content, start) == '<' )
 
-    if string.match(content, "^</", start) then
-        return false
-    end
-    -- read comment
-    while string.match(content, "^<!--", start) do 
-        start = read_comment(content, start)
-        start = strip_heading_ws(content, start)
-    end
     if string.match(content, "^</", start) then
         return false
     end
@@ -210,9 +197,6 @@ function read_tag_content(content, start, tag_name)
         if value_start then
             local next_start = value_end - string.len(tag_end_str)
             local value = string.sub(content, start, next_start)
-            -- remove comment in value
-            value = string.gsub(value, "<!--.-->", '')
-            debug( 'value=%s', value)
             return value, next_start + 1
         else
             assert( false )
@@ -233,6 +217,7 @@ end
 
 function main()
     local file_content = read_file()
+    file_content = remove_all_comments(file_content)
     local dec, start = try_read_declaration(file_content, 1)
     start = start and start or 1
     local tagname, next_start = try_read_tag(file_content, start)
