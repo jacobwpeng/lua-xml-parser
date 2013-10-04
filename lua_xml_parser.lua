@@ -154,27 +154,20 @@ function try_read_tag(content, start)
     return node, tag_end + 1
 end
 
-function read_tag_content(content, start, tag_name)
-    assert( tag_name and type(tag_name) == 'string')
+function read_tag_content(content, start, node)
+    assert( Node.IsNode(node) )
+    local tag_name = node:GetName()
     DEBUG("read_tag_content tag_name=%s, processing : '%s'", tag_name, string.sub(content, start) )
     start = strip_heading_ws(content, start)
-    local this_node = Node.Node(tag_name)
     if next_char(content, start) == '<' then
         local pos = start
         while true do
             --read as more tags as possible
-            local new_tag_name, next_start, this_tag_value, is_single_tag
             local child, next_start = try_read_tag(content, pos)
-            --new_tag_name, next_start, is_single_tag, attrs = try_read_tag(content, pos)
             if child then
+                node:AddChild(child)
                 if not child:IsSingle() then
-                    this_tag_value, next_start = read_tag_content(content, next_start, child:GetName())
-                else
-                    this_tag_value = ""
-                end
-                child:SetValue(this_tag_value)
-                this_node:AddChild(child)
-                if not child:IsSingle() then
+                    next_start = read_tag_content(content, next_start, child)
                     next_start = read_tag_end(content, next_start, child:GetName())
                 end
                 pos = next_start
@@ -182,14 +175,15 @@ function read_tag_content(content, start, tag_name)
                 break
             end
         end
-        return this_node, pos
+        return pos
     else
         local tag_end_str = string.format('</%s>', tag_name)
         local value_start, value_end = read_until(content, tag_end_str, start)
         if value_start then
             local next_start = value_end - string.len(tag_end_str)
             local value = string.sub(content, start, next_start)
-            return value, next_start + 1
+            node:SetValue(value)
+            return next_start + 1
         else
             assert( false )
         end
@@ -210,19 +204,14 @@ end
 function main()
     local file_content = read_file()
     file_content = remove_all_comments(file_content)
+
     local dec, start = try_read_declaration(file_content, 1)
     start = start and start or 1
+
     local root, next_start = try_read_tag(file_content, start)
     if root then
-        local root_value, next_pos = read_tag_content(file_content, next_start, root:GetName())
-        next_pos = read_tag_end(file_content, next_pos, root:GetName())
-        if type(root_value) == 'string' then
-            root:SetValue(root_value)
-        elseif Node.IsNode(root_value) then
-            root:AddChild(root_value)
-        else
-            assert(false)
-        end
+        next_start = read_tag_content(file_content, next_start, root)
+        next_start = read_tag_end(file_content, next_start, root:GetName())
     end
 end
 
