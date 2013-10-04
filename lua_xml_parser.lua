@@ -1,5 +1,7 @@
 #!/usr/bin/env lua
 
+require 'node'
+
 indent_per_level = 5
 
 function enable_debug(fmt, ...)
@@ -19,6 +21,7 @@ function is_table_empty(t)
 end
 
 function walk_table(t, indent)
+    assert( type(t) == 'table' )
     indent = indent or 0
     local indent_str = string.rep(' ', indent)
     for k, v in pairs(t) do
@@ -67,7 +70,7 @@ function strip_heading_ws(content, start)
 end
 
 function remove_all_comments(content, start)
-    local patt = '<!--.--->'
+    local patt = '<!%-%-.-%-%->'
     return string.gsub(content, patt, '')
 end
 
@@ -158,7 +161,7 @@ function read_tag_content(content, start, tag_name)
         while true do
             --read as more tags as possible
             local new_tag_name, next_start, this_tag_value, is_single_tag
-            new_tag_name, next_start, is_single_tag = try_read_tag(content, pos)
+            new_tag_name, next_start, is_single_tag, attrs = try_read_tag(content, pos)
             if is_single_tag then
                 output('%s is single tag', new_tag_name)
             end
@@ -169,7 +172,8 @@ function read_tag_content(content, start, tag_name)
                     this_tag_value = ""
                 end
                 if value[new_tag_name] and type(value[new_tag_name]) == 'table' then
-                    value[new_tag_name][(#value[new_tag_name])+1] = this_tag_value
+                    local idx = (#value[new_tag_name])+1
+                    value[new_tag_name][idx] = this_tag_value
 
                 elseif value[new_tag_name] then
                     local tmp_table = value[new_tag_name]
