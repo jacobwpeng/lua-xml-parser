@@ -59,7 +59,7 @@ end
 
 function is_next_char_ws(content, start)
     local c = next_char(content, start)
-    return c == ' ' or c == '\t' or c == '\n' or c == '\t'
+    return c == ' ' or c == '\t' or c == '\n' or c == '\r'
 end
 
 function strip_heading_ws(content, start)
