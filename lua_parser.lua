@@ -15,10 +15,7 @@ end
 
 function is_table_empty(t)
     assert( type(t) == 'table' )
-    for _, _ in pairs(t) do
-        return false
-    end
-    return true
+    return next(t) == nil
 end
 
 function walk_table(t, indent)
